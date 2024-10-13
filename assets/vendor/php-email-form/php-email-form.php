@@ -1,8 +1,4 @@
 <?php
-require 'vendor/autoload.php'; // Ensure Mailjet SDK is included
-
-use \Mailjet\Resources;
-
 class PHP_Email_Form {
     public $to;
     public $from_name;
@@ -28,8 +24,7 @@ class PHP_Email_Form {
         foreach ($this->messages as $message) {
             $email_content .= $message['label'] . ": " . $message['content'] . "\n";
         }
-        
-        $mj = new \Mailjet\Client($this->api_key, $this->api_secret, true, ['version' => 'v3.1']);
+
         $body = [
             'Messages' => [
                 [
@@ -53,12 +48,32 @@ class PHP_Email_Form {
             ]
         ];
 
-        $response = $mj->post(Resources::$Email, ['body' => $body]);
-        if ($response->success()) {
-            return 'Message sent successfully!';
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://api.mailjet.com/v3.1/send');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+        curl_setopt($ch, CURLOPT_USERPWD, $this->api_key . ':' . $this->api_secret);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/json'));
+
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($http_code == 200) {
+            echo json_encode(['success' => true]);
         } else {
-            return 'Failed to send message: ' . $response->getReasonPhrase();
+            echo json_encode(['success' => false, 'error' => $response]);
         }
     }
 }
+
+// Example usage
+$mail = new PHP_Email_Form();
+$mail->to = 'recipient@example.com';
+$mail->from_name = 'Your Name';
+$mail->reply_to_email = $_POST['email'];
+$mail->subject = 'Subject of the Email';
+$mail->add_message('This is the content of the message.', 'Message');
+echo $mail->send();
 ?>
